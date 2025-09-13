@@ -37,10 +37,10 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
-    name: Build macOS Executable (Intel)
+    name: Build macOS Executable
     strategy:
       matrix:
-        architecture: [x64]
+        architecture: [x64, arm64]
     
     steps:
     - uses: actions/checkout@v3
@@ -49,19 +49,20 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+        architecture: ${{ matrix.architecture }}
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install baostock pandas click rich pyinstaller
         
-    - name: Build macOS executable (Intel)
+    - name: Build macOS executable
       run: |
         python -c "import platform; print(f'Building for: {platform.machine()}')"
-        pyinstaller --onefile --name stock_cli_multi stock_cli_multi.py
+        pyinstaller --onefile --name stock_cli_multi_${{ matrix.architecture }} stock_cli_multi.py
         
     - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
       with:
-        name: stock_cli_multi_macos
-        path: dist/stock_cli_multi
+        name: stock_cli_multi_macos_${{ matrix.architecture }}
+        path: dist/stock_cli_multi_${{ matrix.architecture }}
