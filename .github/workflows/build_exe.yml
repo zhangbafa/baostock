@@ -30,7 +30,7 @@ jobs:
         pyinstaller --onefile --name stock_cli_multi.exe stock_cli_multi.py
         
     - name: Upload Windows artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: stock_cli_multi_windows
         path: dist/stock_cli_multi.exe
@@ -57,7 +57,7 @@ jobs:
         pyinstaller --onefile --name stock_cli_multi stock_cli_multi.py
         
     - name: Upload macOS artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: stock_cli_multi_macos
         path: dist/stock_cli_multi
