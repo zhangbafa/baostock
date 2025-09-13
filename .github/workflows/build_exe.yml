@@ -36,11 +36,17 @@ jobs:
         path: dist/stock_cli_multi.exe
 
   build-macos:
-    runs-on: macos-latest
-    name: Build macOS Executable
     strategy:
       matrix:
-        architecture: [x64, arm64]
+        include:
+          - architecture: x64
+            runner: macos-12
+            identifier: intel
+          - architecture: arm64
+            runner: macos-14
+            identifier: m1
+    runs-on: ${{ matrix.runner }}
+    name: Build macOS Executable (${{ matrix.identifier }})
     
     steps:
     - uses: actions/checkout@v3
@@ -69,10 +75,10 @@ jobs:
     - name: Build macOS executable
       run: |
         python -c "import platform; print(f'Building for: {platform.machine()}')"
-        pyinstaller --onefile --name stock_cli_multi_${{ matrix.architecture }} stock_cli_multi.py
+        pyinstaller --onefile --name stock_cli_multi_${{ matrix.identifier }} stock_cli_multi.py
         
     - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
       with:
-        name: stock_cli_multi_macos_${{ matrix.architecture }}
-        path: dist/stock_cli_multi_${{ matrix.architecture }}
+        name: stock_cli_multi_macos_${{ matrix.identifier }}
+        path: dist/stock_cli_multi_${{ matrix.identifier }}
