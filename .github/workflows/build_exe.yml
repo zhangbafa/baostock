@@ -27,13 +27,13 @@ jobs:
         
     - name: Build Windows executable
       run: |
-        pyinstaller --onefile --name stock_cli_multi.exe stock_cli_multi.py
+        pyinstaller --onefile --name stock.exe stock.py
         
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
         name: stock_cli_multi_windows
-        path: dist/stock_cli_multi.exe
+        path: dist/stock.exe
 
   build-macos:
     strategy:
@@ -75,10 +75,10 @@ jobs:
     - name: Build macOS executable
       run: |
         python -c "import platform; print(f'Building for: {platform.machine()}')"
-        pyinstaller --onefile --name stock_cli_multi_${{ matrix.identifier }} stock_cli_multi.py
+        pyinstaller --onefile --name stock_${{ matrix.identifier }} stock.py
         
     - name: Upload macOS artifact
       uses: actions/upload-artifact@v4
       with:
-        name: stock_cli_multi_macos_${{ matrix.identifier }}
-        path: dist/stock_cli_multi_${{ matrix.identifier }}
+        name: stock_macos_${{ matrix.identifier }}
+        path: dist/stock_${{ matrix.identifier }}
