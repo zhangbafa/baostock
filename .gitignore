@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# 环境文件
+.env
+
+# 日志
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+
+# 单元测试缓存
+htmlcov/
+.coverage
+.tox/
+
+# pip
+pip-wheel-metadata/
+
+# 其他
+*.bak
+*.swp
+
+# Executables
+dist/
+build/
+.codebuddy/

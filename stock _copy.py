@@ -10,42 +10,12 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 from rich import box
-
 from rich.panel import Panel
 from rich.columns import Columns
 from rich.text import Text
 from datetime import datetime, timedelta
-import os
-
 
 console = Console()
-
-# 配置文件相关工具
-def get_config_path(config_path=None):
-    if config_path:
-        return config_path
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stocks.txt')
-
-def ensure_config_file(config_path):
-    if not os.path.exists(config_path):
-        with open(config_path, 'w', encoding='utf-8') as f:
-            f.write(
-                "sh.600000 # 浦发银行\n"
-                "sz.000002 # 万科A\n"
-                "sh.601398 # 工商银行\n"
-            )
-
-def read_stock_codes(config_path):
-    stock_codes = []
-    with open(config_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            code = line.split('#')[0].strip()
-            if code:
-                stock_codes.append(code)
-    return stock_codes
 
 @click.group()
 @click.version_option(version='1.0.0')
@@ -62,7 +32,6 @@ def cli():
     • realtime - ⚡ 获取实时行情数据 (当前价格、涨跌)
     • finance  - 💰 获取财务数据 (利润表、资产负债表、现金流)
     • index    - 📊 查询指数成分股 (上证50、沪深300、中证500)
-    • batch    - 📦 批量统计（配置文件驱动多股票K线统计）
     
     ═══════════════════════════════════════════════════════════════
     🎯 股票代码格式说明
@@ -81,19 +50,14 @@ def cli():
     python stock.py kline 000001              # 平安银行最近30天K线
     python stock.py info sz.000001            # 平安银行基本信息
     python stock.py finance 600000 -y 2023   # 浦发银行2023年财务数据
-
+    
     高级查询:
     python stock.py kline 000001 -d 60 --export data.csv  # 60天数据并导出
     python stock.py kline 600000 -s 2023-01-01 -e 2023-12-31  # 指定日期范围
     python stock.py index -i hs300 --export hs300.csv         # 沪深300成分股
-
+    
     批量查询:
     python stock.py realtime 000001 600000 000002    # 多只股票实时行情
-
-    批量统计:
-    python stock.py batch                # 默认读取 stocks.txt，统计30天
-    python stock.py batch --days 60      # 统计最近60天
-    python stock.py batch --config my_stocks.txt  # 指定配置文件
     
     ═══════════════════════════════════════════════════════════════
     🔗 附加功能
@@ -1226,100 +1190,6 @@ def display_stock_link(stock_code):
     panel = Panel(link_text, title="📊 查看更多", border_style="cyan", padding=(0, 1))
     console.print("\n")
     console.print(panel)
-
-
-@cli.command()
-@click.option('--config', type=click.Path(), help='配置文件路径（默认为程序同目录下的 stocks.txt）')
-@click.option('--days', '-d', type=int, help='获取最近N天数据', default=30)
-def batch(config, days):
-    """
-    📦 批量统计命令 - 配置文件驱动的多股票K线统计
-
-    ══════════════════════════════════════════════════════════
-    📊 功能说明
-    ══════════════════════════════════════════════════════════
-    读取配置文件中的股票代码，循环输出每只股票的K线统计信息（仅统计结果，不显示明细表格）。
-    支持自动创建配置文件并写入示例内容。
-
-    ══════════════════════════════════════════════════════════
-    📝 参数说明
-    ══════════════════════════════════════════════════════════
-    --config: 配置文件路径（可选）
-        • 默认读取程序同目录下的 stocks.txt
-        • 如不存在会自动创建并写入示例内容
-
-    --days, -d: 最近N天（可选，默认30）
-        • 统计每只股票最近N天的K线数据
-
-    ══════════════════════════════════════════════════════════
-    💡 使用示例
-    ══════════════════════════════════════════════════════════
-    python stock.py batch                # 默认读取 stocks.txt，统计30天
-    python stock.py batch --days 60      # 统计最近60天
-    python stock.py batch --config my_stocks.txt  # 指定配置文件
-
-    ══════════════════════════════════════════════════════════
-    📄 配置文件格式说明
-    ══════════════════════════════════════════════════════════
-    stocks.txt 示例：
-        sh.600000 # 浦发银行
-        sz.000002 # 万科A
-        sh.601398 # 工商银行
-    每行“股票代码 + 空格 + # + 注释”，注释可选。
-
-    ══════════════════════════════════════════════════════════
-    📊 输出说明
-    ══════════════════════════════════════════════════════════
-    • 仅输出每只股票的统计信息（涨跌分布、价格变化、投资模拟等）
-    • 不显示明细K线表格
-    """
-    config_path = get_config_path(config)
-    ensure_config_file(config_path)
-    codes = read_stock_codes(config_path)
-    if not codes:
-        console.print(f"[red]配置文件 {config_path} 中没有有效的股票代码[/red]")
-        return
-    console.print(f"[blue]批量统计，读取配置文件: {config_path}[/blue]")
-    for code in codes:
-        stock_code = format_stock_code(code)
-        if not stock_code:
-            continue
-        # 获取最近N天K线数据
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
-        start = start_date.strftime('%Y-%m-%d')
-        end = end_date.strftime('%Y-%m-%d')
-        lg = bs.login()
-        if lg.error_code != '0':
-            console.print(f"[red]baostock登录失败: {lg.error_msg}[/red]")
-            continue
-        try:
-            rs = bs.query_history_k_data_plus(
-                stock_code,
-                "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,isST",
-                start_date=start,
-                end_date=end,
-                frequency="d",
-                adjustflag="3"
-            )
-            if rs.error_code != '0':
-                console.print(f"[red]{stock_code} 数据获取失败: {rs.error_msg}[/red]")
-                continue
-            data_list = []
-            while (rs.error_code == '0') & rs.next():
-                data_list.append(rs.get_row_data())
-            if not data_list:
-                console.print(f"[yellow]未找到 {stock_code} 在指定日期范围内的数据[/yellow]")
-                continue
-            df = pd.DataFrame(data_list, columns=rs.fields)
-            numeric_columns = ['open', 'high', 'low', 'close', 'preclose', 'volume', 'amount', 'turn', 'pctChg']
-            for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-            # 只输出统计信息
-            console.print(f"\n[bold green]统计: {stock_code}[/bold green]")
-            display_kline_stats(df)
-        finally:
-            bs.logout()
 
 if __name__ == '__main__':
     cli()
