@@ -132,21 +132,24 @@ def cli():
 @click.option('--start', '-s', type=str, help='开始日期 (YYYY-MM-DD)', default=None)
 @click.option('--end', '-e', type=str, help='结束日期 (YYYY-MM-DD)', default=None)
 @click.option('--days', '-d', type=int, help='获取最近N天数据', default=30)
+@click.option('--frequency', '-f', type=click.Choice(['5m', '15m', '30m', '60m', 'd', 'w', 'M']), 
+              help='K线周期: 5m=5分钟, 15m=15分钟, 30m=30分钟, 60m=60分钟, d=日线, w=周线, M=月线', default='d')
 @click.option('--export', type=click.Path(), help='导出到CSV文件')
-def kline(stock_code, start, end, days, export):
+def kline(stock_code, start, end, days, frequency, export):
     """
-    📈 获取股票K线数据 - 日线行情分析
+    📈 获取股票K线数据 - 多周期行情分析
     
     ══════════════════════════════════════════════════════════
     📊 功能说明
     ══════════════════════════════════════════════════════════
     
-    获取指定股票的日K线数据，包括：
+    获取指定股票的K线数据，支持多种时间周期：
     • 📈 OHLC数据: 开盘价、最高价、最低价、收盘价
     • 📊 成交数据: 成交量、成交额、换手率
     • 📉 涨跌数据: 涨跌幅、前收盘价
     • 🏷️  交易状态: 是否停牌、是否ST
     • 📈 智能分析: 涨跌分布统计、投资收益模拟
+    • ⏱️  多周期: 支持分钟线、日线、周线、月线
     
     ══════════════════════════════════════════════════════════
     📝 参数说明
@@ -168,6 +171,13 @@ def kline(stock_code, start, end, days, export):
       • 当未指定start/end时生效
       • 建议范围: 1-365天
     
+    --frequency, -f: K线周期 (可选, 默认: d)
+      • 分钟线: 5m=5分钟, 15m=15分钟, 30m=30分钟, 60m=60分钟
+      • 日线: d=日线 (默认)
+      • 周线: w=周线
+      • 月线: M=月线
+      • 注意: 分钟线数据仅支持最近几个月的数据
+    
     --export: 导出文件路径 (可选)
       • 格式: CSV文件 (UTF-8编码)
       • 示例: --export /path/to/data.csv
@@ -177,18 +187,27 @@ def kline(stock_code, start, end, days, export):
     ══════════════════════════════════════════════════════════
     
     基础查询:
-      python stock.py kline 000001                    # 平安银行最近30天
-      python stock.py kline sz.000001 -d 60          # 最近60天数据
-      python stock.py kline 600000                    # 浦发银行最近30天
+      python stock.py kline 000001                    # 平安银行最近30天日线
+      python stock.py kline sz.000001 -d 60          # 最近60天日线数据
+      python stock.py kline 600000 -f w              # 浦发银行周线数据
+    
+    多周期查询:
+      python stock.py kline 000001 -f 5m             # 5分钟K线
+      python stock.py kline 000001 -f 15m            # 15分钟K线  
+      python stock.py kline 000001 -f 30m            # 30分钟K线
+      python stock.py kline 000001 -f 60m            # 60分钟K线
+      python stock.py kline 000001 -f d              # 日线（默认）
+      python stock.py kline 000001 -f w              # 周线
+      python stock.py kline 000001 -f M              # 月线
     
     日期范围查询:
-      python stock.py kline 000001 -s 2023-01-01 -e 2023-12-31  # 2023年全年
-      python stock.py kline 600000 -s 2023-06-01                # 6月1日至今
-      python stock.py kline 000001 -e 2023-12-31 -d 90          # 12月31日前90天
+      python stock.py kline 000001 -s 2023-01-01 -e 2023-12-31  # 2023年全年日线
+      python stock.py kline 000001 -f w -s 2023-01-01           # 2023年以来周线
+      python stock.py kline 000001 -f 5m -d 3                   # 最近3天5分钟线
     
     数据导出:
-      python stock.py kline 000001 --export data.csv           # 导出到CSV
-      python stock.py kline 000001 -d 90 --export report.csv  # 90天数据导出
+      python stock.py kline 000001 --export data.csv           # 导出日线到CSV
+      python stock.py kline 000001 -f w --export weekly.csv   # 导出周线数据
     
     ══════════════════════════════════════════════════════════
     📊 输出说明
@@ -231,7 +250,19 @@ def kline(stock_code, start, end, days, export):
     elif not end:
         end = datetime.now().strftime('%Y-%m-%d')
     
-    console.print(f"[blue]📈 正在获取 {stock_code} 从 {start} 到 {end} 的日K线数据...[/blue]")
+    # 频率映射和描述
+    frequency_map = {
+        '5m': ('5', '5分钟'),
+        '15m': ('15', '15分钟'), 
+        '30m': ('30', '30分钟'),
+        '60m': ('60', '60分钟'),
+        'd': ('d', '日线'),
+        'w': ('w', '周线'),
+        'M': ('M', '月线')
+    }
+    
+    bao_frequency, freq_desc = frequency_map[frequency]
+    console.print(f"[blue]📈 正在获取 {stock_code} 从 {start} 到 {end} 的{freq_desc}数据...[/blue]")
     
     # 登录baostock系统
     lg = bs.login()
@@ -240,15 +271,37 @@ def kline(stock_code, start, end, days, export):
         return
     
     try:
-        # 获取日K线数据
-        rs = bs.query_history_k_data_plus(
-            stock_code,
-            "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,isST",
-            start_date=start,
-            end_date=end,
-            frequency="d",
-            adjustflag="3"
-        )
+        # 根据频率选择不同的查询方法和字段
+        if frequency in ['5m', '15m', '30m', '60m']:
+            # 分钟线数据查询
+            rs = bs.query_history_k_data_plus(
+                stock_code,
+                "date,time,code,open,high,low,close,volume,amount,adjustflag",
+                start_date=start,
+                end_date=end,
+                frequency=bao_frequency,
+                adjustflag="3"
+            )
+        elif frequency in ['w', 'M']:
+            # 周线/月线数据查询（字段限制）
+            rs = bs.query_history_k_data_plus(
+                stock_code,
+                "date,code,open,high,low,close,volume,amount,adjustflag",
+                start_date=start,
+                end_date=end,
+                frequency=bao_frequency,
+                adjustflag="3"
+            )
+        else:
+            # 日线数据查询
+            rs = bs.query_history_k_data_plus(
+                stock_code,
+                "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,isST",
+                start_date=start,
+                end_date=end,
+                frequency=bao_frequency,
+                adjustflag="3"
+            )
         
         if rs.error_code != '0':
             console.print(f"[red]数据获取失败: {rs.error_msg}[/red]")
@@ -265,14 +318,31 @@ def kline(stock_code, start, end, days, export):
         
         df = pd.DataFrame(data_list, columns=rs.fields)
         
-        # 数据类型转换
-        numeric_columns = ['open', 'high', 'low', 'close', 'preclose', 'volume', 'amount', 'turn', 'pctChg']
-        for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        # 根据频率类型进行不同的数据处理
+        if frequency in ['5m', '15m', '30m', '60m']:
+            # 分钟线数据类型转换
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'amount']
+            for col in numeric_columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            # 合并日期时间列
+            if 'time' in df.columns:
+                df['datetime'] = df['date'] + ' ' + df['time']
+        elif frequency in ['w', 'M']:
+            # 周线/月线数据类型转换
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'amount']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+        else:
+            # 日线数据类型转换
+            numeric_columns = ['open', 'high', 'low', 'close', 'preclose', 'volume', 'amount', 'turn', 'pctChg']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
         
         # 创建Rich表格
         table = Table(
-            title=f"📈 {stock_code} 日K线数据 ({start} ~ {end})",
+            title=f"📈 {stock_code} {freq_desc}数据 ({start} ~ {end})",
             box=box.ROUNDED,
             show_header=True,
             header_style="bold magenta",
@@ -280,44 +350,83 @@ def kline(stock_code, start, end, days, export):
             padding=(1, 1)
         )
         
-        # 添加列
-        table.add_column("日期", style="cyan", justify="center")
-        table.add_column("开盘", style="white", justify="right")
-        table.add_column("最高", style="white", justify="right")
-        table.add_column("最低", style="white", justify="right")
-        table.add_column("收盘", style="white", justify="right")
-        table.add_column("涨跌幅", style="white", justify="right")
-        table.add_column("成交量", style="blue", justify="right")
-        table.add_column("成交额", style="blue", justify="right")
+        # 根据频率类型添加不同的列
+        if frequency in ['5m', '15m', '30m', '60m']:
+            # 分钟线表格列
+            table.add_column("日期时间", style="cyan", justify="center")
+            table.add_column("开盘", style="white", justify="right")
+            table.add_column("最高", style="white", justify="right")
+            table.add_column("最低", style="white", justify="right")
+            table.add_column("收盘", style="white", justify="right")
+            table.add_column("成交量", style="blue", justify="right")
+            table.add_column("成交额", style="blue", justify="right")
+        elif frequency in ['w', 'M']:
+            # 周线/月线表格列（不显示涨跌幅）
+            table.add_column("日期", style="cyan", justify="center")
+            table.add_column("开盘", style="white", justify="right")
+            table.add_column("最高", style="white", justify="right")
+            table.add_column("最低", style="white", justify="right")
+            table.add_column("收盘", style="white", justify="right")
+            table.add_column("成交量", style="blue", justify="right")
+            table.add_column("成交额", style="blue", justify="right")
+        else:
+            # 日线表格列
+            table.add_column("日期", style="cyan", justify="center")
+            table.add_column("开盘", style="white", justify="right")
+            table.add_column("最高", style="white", justify="right")
+            table.add_column("最低", style="white", justify="right")
+            table.add_column("收盘", style="white", justify="right")
+            table.add_column("涨跌幅", style="white", justify="right")
+            table.add_column("成交量", style="blue", justify="right")
+            table.add_column("成交额", style="blue", justify="right")
         
         # 添加数据行
         for _, row in df.iterrows():
-            pct_change = float(row['pctChg']) if pd.notna(row['pctChg']) else 0
-            pct_style = "red" if pct_change > 0 else "green" if pct_change < 0 else "white"
-            pct_text = f"{pct_change:+.2f}%" if pct_change != 0 else "0.00%"
-            
             # 格式化成交量和成交额
             volume = int(row['volume']) if pd.notna(row['volume']) else 0
             amount = float(row['amount']) if pd.notna(row['amount']) else 0
-            
             volume_str = f"{volume:,}" if volume > 0 else "-"
             amount_str = f"{amount/100000000:.2f}亿" if amount > 100000000 else f"{amount/10000:.2f}万" if amount > 10000 else f"{amount:.0f}"
-            
-            table.add_row(
-                row['date'],
-                f"{float(row['open']):.2f}" if pd.notna(row['open']) else "-",
-                f"{float(row['high']):.2f}" if pd.notna(row['high']) else "-",
-                f"{float(row['low']):.2f}" if pd.notna(row['low']) else "-",
-                f"{float(row['close']):.2f}" if pd.notna(row['close']) else "-",
-                f"[{pct_style}]{pct_text}[/{pct_style}]",
-                volume_str,
-                amount_str
-            )
+
+            if frequency in ['5m', '15m', '30m', '60m']:
+                table.add_row(
+                    row['datetime'] if 'datetime' in row else row['date'],
+                    f"{float(row['open']):.2f}" if pd.notna(row['open']) else "-",
+                    f"{float(row['high']):.2f}" if pd.notna(row['high']) else "-",
+                    f"{float(row['low']):.2f}" if pd.notna(row['low']) else "-",
+                    f"{float(row['close']):.2f}" if pd.notna(row['close']) else "-",
+                    volume_str,
+                    amount_str
+                )
+            elif frequency in ['w', 'M']:
+                table.add_row(
+                    row['date'],
+                    f"{float(row['open']):.2f}" if pd.notna(row['open']) else "-",
+                    f"{float(row['high']):.2f}" if pd.notna(row['high']) else "-",
+                    f"{float(row['low']):.2f}" if pd.notna(row['low']) else "-",
+                    f"{float(row['close']):.2f}" if pd.notna(row['close']) else "-",
+                    volume_str,
+                    amount_str
+                )
+            else:
+                pct_change = float(row['pctChg']) if pd.notna(row['pctChg']) else 0
+                pct_style = "red" if pct_change > 0 else "green" if pct_change < 0 else "white"
+                pct_text = f"{pct_change:+.2f}%" if pct_change != 0 else "0.00%"
+                table.add_row(
+                    row['date'],
+                    f"{float(row['open']):.2f}" if pd.notna(row['open']) else "-",
+                    f"{float(row['high']):.2f}" if pd.notna(row['high']) else "-",
+                    f"{float(row['low']):.2f}" if pd.notna(row['low']) else "-",
+                    f"{float(row['close']):.2f}" if pd.notna(row['close']) else "-",
+                    f"[{pct_style}]{pct_text}[/{pct_style}]",
+                    volume_str,
+                    amount_str
+                )
         
         console.print(table)
         
         # 显示统计信息 (简化版)
-        display_kline_stats(df)
+        display_kline_stats(df, frequency)
         
         # 导出数据
         if export:
@@ -782,7 +891,7 @@ def display_finance_data(stock_code, year, quarter, profit_data, cash_data, bala
             elif abs(value) >= 10000:  # 万
                 return f"{value/10000:.2f}万"
             else:
-                return f"{value:.2f}"
+                return f"{value:.0f}"
         except:
             return value_str or '-'
     
@@ -854,9 +963,17 @@ def format_stock_code(stock_code):
     
     return stock_code
 
-def display_kline_stats(df):
+def display_kline_stats(df, frequency='d'):
     """显示K线统计信息"""
     total_days = len(df)
+    
+    # 检查是否存在 pctChg 字段，如果不存在，则计算涨跌幅
+    if 'pctChg' not in df.columns:
+        # 对于周线/月线数据，需要手动计算涨跌幅
+        df['pctChg'] = df['close'].astype(float).pct_change() * 100
+        # 第一行的涨跌幅无法计算，设为0
+        df['pctChg'] = df['pctChg'].fillna(0)
+    
     up_days = len(df[df['pctChg'].astype(float) > 0])
     down_days = len(df[df['pctChg'].astype(float) < 0])
     flat_days = total_days - up_days - down_days
@@ -866,13 +983,36 @@ def display_kline_stats(df):
     price_change = prices.iloc[-1] - prices.iloc[0] if len(prices) > 1 else 0
     price_change_pct = (price_change / prices.iloc[0] * 100) if len(prices) > 1 and prices.iloc[0] != 0 else 0
     
+    # 根据频率设置交易周期描述
+    period_desc = {
+        'd': '交易日',
+        'w': '交易周',
+        'M': '交易月'
+    }.get(frequency, '交易日')
+    
+    # 对于分钟级别的K线，计算实际的交易天数
+    if frequency in ['5m', '15m', '30m', '60m']:
+        # 提取日期部分（不含时间）
+        if 'date' in df.columns:
+            unique_days = df['date'].nunique()
+            trading_days_text = f"总交易日: {unique_days} 天 ({total_days} 个{frequency}周期)"
+        else:
+            trading_days_text = f"总交易日: {total_days} 个{frequency}周期"
+    else:
+        # 对于日线、周线、月线
+        trading_days_text = f"总{period_desc}: {total_days}"
+        if frequency == 'd':
+            trading_days_text += " 天"
+        elif frequency == 'w':
+            trading_days_text += " 周"
+        elif frequency == 'M':
+            trading_days_text += " 月"
+    
     # 交易日统计
     trading_stats = Text()
     trading_stats.append("📊 ", style="bold blue")
     trading_stats.append("交易统计", style="bold white")
-    trading_stats.append(f"\n总交易日: ", style="white")
-    trading_stats.append(f"{total_days}", style="bold cyan")
-    trading_stats.append(" 天", style="white")
+    trading_stats.append(f"\n{trading_days_text}", style="white")
     
     # 涨跌统计
     trend_stats = Text()
@@ -1217,13 +1357,13 @@ def display_stock_link(stock_code):
     link_text.append("百度股市通: ", style="white")
     link_text.append(baidu_link, style="bold cyan underline")
     link_text.append("\n📈 ", style="bold green")
-    link_text.append("东方财富: ", style="white")
+    link_text.append("东方财富 : ", style="white")
     link_text.append(eastmoney_link, style="bold green underline")
     link_text.append("\n🔍 ", style="bold yellow")
-    link_text.append("百度搜索: ", style="white")
+    link_text.append("百度搜索 : ", style="white")
     link_text.append(baidu_search_link, style="bold yellow underline")
     
-    panel = Panel(link_text, title="📊 查看更多", border_style="cyan", padding=(0, 1))
+    panel = Panel(link_text, title="📊 查看更多", border_style="cyan", padding=(0, 1),width=100)
     console.print("\n")
     console.print(panel)
 
